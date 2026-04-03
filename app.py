@@ -231,8 +231,14 @@ def plot_lab_by_country_gender(df, var_lab, country_col="cntry_lab", gender_col=
         tab[country_col].astype(str) + " - " + tab[gender_col].astype(str)
     )
 
+    category_cols = [
+        col for col in tab.columns
+        if col not in [country_col, gender_col, "country_gender"]
+    ]
+
     long_df = tab.melt(
         id_vars=["country_gender"],
+        value_vars=category_cols,
         var_name="category",
         value_name="percent"
     )
@@ -269,8 +275,14 @@ def plot_lab_by_age_gender(df, var_lab, age_col="agegroup", gender_col="gndr"):
         tab[age_col].astype(str) + " - " + tab[gender_col].astype(str)
     )
 
+    category_cols = [
+        col for col in tab.columns
+        if col not in [age_col, gender_col, "age_gender"]
+    ]
+
     long_df = tab.melt(
         id_vars=["age_gender"],
+        value_vars=category_cols,
         var_name="category",
         value_name="percent"
     )
