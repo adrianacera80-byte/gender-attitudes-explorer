@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 
-st.set_page_config(page_title="Gender Attitudes Explorer", layout="wide")
+st.set_page_config(page_title="Gender Attitudes Explorer", layout="centered")
 
 @st.cache_data
 def load_data():
@@ -110,30 +110,48 @@ def get_var_title(var_name):
         return var_info[var_name]["label"], var_info[var_name]["description"]
     return var_name, ""
 
-def apply_clean_plotly_style(fig, title_label, description):
+def apply_clean_plotly_style(fig, title_label):
     fig.update_layout(
         template="simple_white",
         paper_bgcolor="white",
         plot_bgcolor="white",
         title={
-            "text": f"{title_label}<br><sup>{description}</sup>",
+            "text": title_label,
             "x": 0.5,
             "xanchor": "center"
         },
         legend_title="Category",
         legend=dict(
-            orientation="v",
+            orientation="h",
             yanchor="top",
-            y=1,
-            xanchor="left",
-            x=1.02
+            y=-0.22,
+            xanchor="center",
+            x=0.5
         ),
-        margin=dict(t=120, r=220, b=60, l=80),
-        font=dict(size=12)
+        margin=dict(t=60, r=20, b=110, l=20),
+        font=dict(size=11)
     )
-    fig.update_xaxes(range=[0, 100], title="Percent", showgrid=False, zeroline=False)
-    fig.update_yaxes(showgrid=False, zeroline=False, title=None)
+    fig.update_xaxes(
+        range=[0, 100],
+        title="Percent",
+        showgrid=False,
+        zeroline=False
+    )
+    fig.update_yaxes(
+        showgrid=False,
+        zeroline=False,
+        title=None,
+        automargin=True
+    )
     return fig
+
+def filter_data(df, selected_countries):
+    df_filtered = df.copy()
+
+    if selected_countries:
+        df_filtered = df_filtered[df_filtered["cntry_lab"].isin(selected_countries)]
+
+    return df_filtered
 
 def plot_lab_by_gender(df, var_lab, gender_col="gndr"):
     tab = pd.crosstab(
@@ -148,7 +166,7 @@ def plot_lab_by_gender(df, var_lab, gender_col="gndr"):
         value_name="percent"
     )
 
-    title_label, description = get_var_title(var_lab)
+    title_label, _ = get_var_title(var_lab)
 
     fig = px.bar(
         long_df,
@@ -158,13 +176,15 @@ def plot_lab_by_gender(df, var_lab, gender_col="gndr"):
         orientation="h",
         barmode="stack",
         labels={gender_col: "Gender", "category": "Category"},
-        hover_data={"percent": ":.2f"}
+        hover_data={"percent": ":.2f"},
+        height=320
     )
 
     fig.update_traces(
         hovertemplate="<b>%{y}</b><br>Category: %{fullData.name}<br>Percent: %{x:.2f}%<extra></extra>"
     )
-    return apply_clean_plotly_style(fig, title_label, description)
+
+    return apply_clean_plotly_style(fig, title_label)
 
 def plot_lab_by_country(df, var_lab, country_col="cntry_lab"):
     tab = pd.crosstab(
@@ -179,7 +199,7 @@ def plot_lab_by_country(df, var_lab, country_col="cntry_lab"):
         value_name="percent"
     )
 
-    title_label, description = get_var_title(var_lab)
+    title_label, _ = get_var_title(var_lab)
     n_countries = df[country_col].nunique()
 
     fig = px.bar(
@@ -191,13 +211,14 @@ def plot_lab_by_country(df, var_lab, country_col="cntry_lab"):
         barmode="stack",
         labels={country_col: "Country", "category": "Category"},
         hover_data={"percent": ":.2f"},
-        height=max(700, n_countries * 24)
+        height=max(420, n_countries * 32)
     )
 
     fig.update_traces(
         hovertemplate="<b>%{y}</b><br>Category: %{fullData.name}<br>Percent: %{x:.2f}%<extra></extra>"
     )
-    return apply_clean_plotly_style(fig, title_label, description)
+
+    return apply_clean_plotly_style(fig, title_label)
 
 def plot_lab_by_country_gender(df, var_lab, country_col="cntry_lab", gender_col="gndr"):
     tab = pd.crosstab(
@@ -206,33 +227,36 @@ def plot_lab_by_country_gender(df, var_lab, country_col="cntry_lab", gender_col=
         normalize="index"
     ).mul(100).reset_index()
 
+    tab["country_gender"] = (
+        tab[country_col].astype(str) + " - " + tab[gender_col].astype(str)
+    )
+
     long_df = tab.melt(
-        id_vars=[country_col, gender_col],
+        id_vars=["country_gender"],
         var_name="category",
         value_name="percent"
     )
 
-    title_label, description = get_var_title(var_lab)
-    n_countries = df[country_col].nunique()
+    title_label, _ = get_var_title(var_lab)
+    n_rows = tab["country_gender"].nunique()
 
     fig = px.bar(
         long_df,
-        y=country_col,
+        y="country_gender",
         x="percent",
         color="category",
         orientation="h",
         barmode="stack",
-        facet_col=gender_col,
-        labels={country_col: "Country", "category": "Category"},
+        labels={"country_gender": "Country - Gender", "category": "Category"},
         hover_data={"percent": ":.2f"},
-        height=max(700, n_countries * 24)
+        height=max(500, n_rows * 30)
     )
 
     fig.update_traces(
         hovertemplate="<b>%{y}</b><br>Category: %{fullData.name}<br>Percent: %{x:.2f}%<extra></extra>"
     )
-    fig.for_each_annotation(lambda a: a.update(text=a.text.split("=")[-1]))
-    return apply_clean_plotly_style(fig, title_label, description)
+
+    return apply_clean_plotly_style(fig, title_label)
 
 def plot_lab_by_age_gender(df, var_lab, age_col="agegroup", gender_col="gndr"):
     tab = pd.crosstab(
@@ -241,58 +265,86 @@ def plot_lab_by_age_gender(df, var_lab, age_col="agegroup", gender_col="gndr"):
         normalize="index"
     ).mul(100).reset_index()
 
+    tab["age_gender"] = (
+        tab[age_col].astype(str) + " - " + tab[gender_col].astype(str)
+    )
+
     long_df = tab.melt(
-        id_vars=[age_col, gender_col],
+        id_vars=["age_gender"],
         var_name="category",
         value_name="percent"
     )
 
-    title_label, description = get_var_title(var_lab)
+    title_label, _ = get_var_title(var_lab)
+    n_rows = tab["age_gender"].nunique()
 
     fig = px.bar(
         long_df,
-        y=age_col,
+        y="age_gender",
         x="percent",
         color="category",
         orientation="h",
         barmode="stack",
-        facet_col=gender_col,
-        labels={age_col: "Age group", "category": "Category"},
+        labels={"age_gender": "Age group - Gender", "category": "Category"},
         hover_data={"percent": ":.2f"},
-        height=500
+        height=max(420, n_rows * 34)
     )
 
     fig.update_traces(
         hovertemplate="<b>%{y}</b><br>Category: %{fullData.name}<br>Percent: %{x:.2f}%<extra></extra>"
     )
-    fig.for_each_annotation(lambda a: a.update(text=a.text.split("=")[-1]))
-    return apply_clean_plotly_style(fig, title_label, description)
+
+    return apply_clean_plotly_style(fig, title_label)
 
 st.title("Gender Attitudes Explorer")
+st.caption("Explore gender attitudes across countries, gender groups and age groups.")
 
-lab_vars = sorted([col for col in df_gender.columns if col.endswith("_lab")])
+lab_vars = sorted(var_info.keys())
 nice_options = {var_info.get(col, {"label": col})["label"]: col for col in lab_vars}
 
-selected_label = st.selectbox("Choose a variable", list(nice_options.keys()))
+countries = sorted(df_gender["cntry_lab"].dropna().unique())
+
+with st.sidebar:
+    st.header("Explore")
+
+    selected_label = st.selectbox(
+        "Choose a variable",
+        list(nice_options.keys())
+    )
+
+    plot_type = st.selectbox(
+        "Choose a plot",
+        ["By gender", "By country", "By country and gender", "By age and gender"]
+    )
+
+    selected_countries = st.multiselect(
+        "Filter countries",
+        countries,
+        default=countries[:5] if len(countries) > 5 else countries
+    )
+
 selected_var = nice_options[selected_label]
-
-plot_type = st.selectbox(
-    "Choose a plot",
-    ["By gender", "By country", "By country and gender", "By age and gender"]
-)
-
 label, description = get_var_title(selected_var)
 
-st.markdown(f"### {label}")
+df_filtered = filter_data(df_gender, selected_countries)
+
+st.subheader(label)
 st.caption(description)
 
-if plot_type == "By gender":
-    fig = plot_lab_by_gender(df_gender, selected_var)
-elif plot_type == "By country":
-    fig = plot_lab_by_country(df_gender, selected_var)
-elif plot_type == "By country and gender":
-    fig = plot_lab_by_country_gender(df_gender, selected_var)
-else:
-    fig = plot_lab_by_age_gender(df_gender, selected_var)
+col1, col2 = st.columns(2)
+col1.metric("Observations", f"{len(df_filtered):,}")
+col2.metric("Countries", df_filtered["cntry_lab"].nunique())
 
-st.plotly_chart(fig, use_container_width=True)
+if len(df_filtered) == 0:
+    st.warning("No data available for the selected filters.")
+else:
+    if plot_type == "By gender":
+        fig = plot_lab_by_gender(df_filtered, selected_var)
+    elif plot_type == "By country":
+        fig = plot_lab_by_country(df_filtered, selected_var)
+    elif plot_type == "By country and gender":
+        fig = plot_lab_by_country_gender(df_filtered, selected_var)
+    else:
+        fig = plot_lab_by_age_gender(df_filtered, selected_var)
+
+    st.plotly_chart(fig, use_container_width=True)
